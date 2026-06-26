@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Typing Personality Analyzer</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Syne+Mono&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #07070f;
+    --surface: #0e0e1a;
+    --border: #1e1e35;
+    --accent1: #7c5cfc;
+    --accent2: #fc5c9c;
+    --accent3: #5cf8fc;
+    --text: #e8e8f0;
+    --muted: #6b6b8a;
+    --glow1: rgba(124,92,252,0.35);
+    --glow2: rgba(252,92,156,0.25);
+  }
+
+  body {
+    font-family: 'Space Grotesk', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Neural canvas background */
+  #neural-bg {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 0;
+    opacity: 0.4;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+  }
+
+  /* Header */
+  .header {
+    text-align: center;
+    margin-bottom: 56px;
+  }
+
+  .eyebrow {
+    font-family: 'Syne Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    color: var(--accent3);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    opacity: 0.8;
+  }
+
+  h1 {
+    font-size: clamp(2rem, 5vw, 3.2rem);
+    font-weight: 700;
+    line-height: 1.1;
+    background: linear-gradient(135deg, #fff 0%, var(--accent1) 50%, var(--accent2) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 16px;
+  }
+
+  .subtitle {
+    color: var(--muted);
+    font-size: 15px;
+    line-height: 1.6;
+    max-width: 480px;
+    margin: 0 auto;
+  }
+
+  /* Stats bar */
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 12px;
+    text-align: center;
+    transition: border-color 0.3s;
+  }
+
+  .stat-card.active { border-color: var(--accent1); }
+
+  .stat-value {
+    font-family: 'Syne Mono', monospace;
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--accent1);
+    line-height: 1;
+    margin-bottom: 4px;
+    transition: color 0.3s;
+  }
+
+  .stat-card:nth-child(2) .stat-value { color: var(--accent2); }
+  .stat-card:nth-child(3) .stat-value { color: var(--accent3); }
+  .stat-card:nth-child(4) .stat-value { color: #fcdc5c; }
+
+  .stat-label {
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  /* Typing area */
+  .typing-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 28px;
+    margin-bottom: 28px;
+    position: relative;
+    transition: border-color 0.3s, box-shadow 0.3s;
+  }
+
+  .typing-card.focused {
+    border-color: var(--accent1);
+    box-shadow: 0 0 40px var(--glow1);
+  }
+
+  .typing-prompt {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 14px;
+    font-family: 'Syne Mono', monospace;
+    letter-spacing: 0.05em;
+  }
+
+  .typing-prompt span {
+    color: var(--accent3);
+  }
+
+  textarea {
+    width: 100%;
+    min-height: 140px;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 16px;
+    line-height: 1.7;
+    resize: none;
+    caret-color: var(--accent1);
+  }
+
+  textarea::placeholder {
+    color: #2a2a45;
+  }
+
+  /* Progress ring */
+  .progress-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  .word-progress {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .progress-track {
+    width: 120px;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent1), var(--accent2));
+    border-radius: 2px;
+    width: 0%;
+    transition: width 0.3s ease;
+  }
+
+  .word-count-label {
+    font-family: 'Syne Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .word-count-label span {
+    color: var(--accent1);
+  }
+
+  .analyze-btn {
+    background: linear-gradient(135deg, var(--accent1), var(--accent2));
+    border: none;
+    border-radius: 10px;
+    color: white;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 10px 24px;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    transition: opacity 0.2s, transform 0.2s;
+    opacity: 0.4;
+    pointer-events: none;
+  }
+
+  .analyze-btn.ready {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  .analyze-btn.ready:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 24px var(--glow1);
+  }
+
+  /* Result section */
+  #result-section {
+    display: none;
+  }
+
+  #result-section.visible {
+    display: block;
+    animation: fadeUp 0.6s ease forwards;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .result-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 36px 28px;
+    margin-bottom: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .result-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent1), var(--accent2), var(--accent3));
+  }
+
+  .personality-emoji {
+    font-size: 52px;
+    margin-bottom: 16px;
+    display: block;
+    animation: pulse 2s ease infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+  }
+
+  .personality-type {
+    font-size: 11px;
+    font-family: 'Syne Mono', monospace;
+    letter-spacing: 0.2em;
+    color: var(--accent3);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  .personality-name {
+    font-size: clamp(1.6rem, 4vw, 2.4rem);
+    font-weight: 700;
+    margin-bottom: 14px;
+    background: linear-gradient(135deg, #fff, var(--accent1));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .personality-desc {
+    font-size: 15px;
+    color: #a0a0c0;
+    line-height: 1.7;
+    margin-bottom: 28px;
+  }
+
+  /* Trait bars */
+  .traits-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 28px;
+  }
+
+  .trait-item { }
+
+  .trait-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    margin-bottom: 6px;
+  }
+
+  .trait-name { color: var(--muted); letter-spacing: 0.05em; }
+  .trait-score { font-family: 'Syne Mono', monospace; color: var(--accent1); }
+
+  .trait-bar {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .trait-fill {
+    height: 100%;
+    border-radius: 2px;
+    width: 0%;
+    transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Famous match */
+  .famous-card {
+    background: #0a0a18;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .famous-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    background: var(--border);
+    flex-shrink: 0;
+  }
+
+  .famous-label {
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .famous-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .famous-why {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  /* Retry btn */
+  .retry-btn {
+    width: 100%;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    color: var(--muted);
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 14px;
+    padding: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.05em;
+  }
+
+  .retry-btn:hover {
+    border-color: var(--accent1);
+    color: var(--accent1);
+  }
+
+  /* Live pulse indicator */
+  .live-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent2);
+    margin-right: 6px;
+    animation: blink 1.2s ease infinite;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.2; }
+  }
+
+  .recording-label {
+    font-family: 'Syne Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+  }
+
+  @media (max-width: 520px) {
+    .stats-bar { grid-template-columns: repeat(2, 1fr); }
+    .traits-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="neural-bg"></canvas>
+
+<div class="container">
+
+  <div class="header">
+    <div class="eyebrow">Behavioral Biometrics · Real-time Analysis</div>
+    <h1>Typing Personality<br>Analyzer</h1>
+    <p class="subtitle">Your keystrokes reveal your mind. Type anything — we decode the patterns hidden in how you type, not what you type.</p>
+  </div>
+
+  <!-- Live Stats -->
+  <div class="stats-bar">
+    <div class="stat-card" id="sc-wpm">
+      <div class="stat-value" id="sv-wpm">0</div>
+      <div class="stat-label">WPM</div>
+    </div>
+    <div class="stat-card" id="sc-bp">
+      <div class="stat-value" id="sv-bp">0</div>
+      <div class="stat-label">Backspaces</div>
+    </div>
+    <div class="stat-card" id="sc-pause">
+      <div class="stat-value" id="sv-pause">0</div>
+      <div class="stat-label">Pauses</div>
+    </div>
+    <div class="stat-card" id="sc-burst">
+      <div class="stat-value" id="sv-burst">0</div>
+      <div class="stat-label">Bursts</div>
+    </div>
+  </div>
+
+  <!-- Typing Area -->
+  <div class="typing-card" id="typing-card">
+    <div class="typing-prompt">
+      <span>►</span> Type anything — a memory, a dream, your thoughts right now. Minimum <span>30 words</span>.
+    </div>
+    <textarea id="typing-area" placeholder="Start typing here..."></textarea>
+    <div class="progress-wrap">
+      <div class="word-progress">
+        <div class="recording-label"><span class="live-dot"></span>Recording patterns</div>
+        <div class="progress-track">
+          <div class="progress-fill" id="progress-fill"></div>
+        </div>
+        <div class="word-count-label"><span id="wc-current">0</span>/30 words</div>
+      </div>
+      <button class="analyze-btn" id="analyze-btn" onclick="analyzePersonality()">Reveal →</button>
+    </div>
+  </div>
+
+  <!-- Result -->
+  <div id="result-section">
+    <div class="result-card">
+      <span class="personality-emoji" id="r-emoji">🔮</span>
+      <div class="personality-type" id="r-type">Personality Type</div>
+      <div class="personality-name" id="r-name">Loading...</div>
+      <div class="personality-desc" id="r-desc"></div>
+
+      <div class="traits-grid" id="traits-grid"></div>
+
+      <div class="famous-card" id="famous-card">
+        <div class="famous-icon" id="famous-icon">🧠</div>
+        <div>
+          <div class="famous-label">You type like</div>
+          <div class="famous-name" id="famous-name">—</div>
+          <div class="famous-why" id="famous-why">—</div>
+        </div>
+      </div>
+    </div>
+
+    <button class="retry-btn" onclick="resetAnalyzer()">↺ &nbsp; Analyze again</button>
+  </div>
+
+</div>
+
+<script>
+// ─── Neural Background Canvas ───────────────────────────────────────
+const canvas = document.getElementById('neural-bg');
+const ctx = canvas.getContext('2d');
+let nodes = [];
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+
+function initNodes() {
+  nodes = [];
+  const count = Math.floor((canvas.width * canvas.height) / 18000);
+  for (let i = 0; i < count; i++) {
+    nodes.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      vx: (Math.random() - 0.5) * 0.3,
+      vy: (Math.random() - 0.5) * 0.3,
+      r: Math.random() * 1.5 + 0.5
+    });
+  }
+}
+
+function drawNeural() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  nodes.forEach(n => {
+    n.x += n.vx; n.y += n.vy;
+    if (n.x < 0 || n.x > canvas.width) n.vx *= -1;
+    if (n.y < 0 || n.y > canvas.height) n.vy *= -1;
+  });
+
+  for (let i = 0; i < nodes.length; i++) {
+    for (let j = i + 1; j < nodes.length; j++) {
+      const dx = nodes[i].x - nodes[j].x;
+      const dy = nodes[i].y - nodes[j].y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 120) {
+        ctx.beginPath();
+        ctx.strokeStyle = `rgba(124,92,252,${0.15 * (1 - dist / 120)})`;
+        ctx.lineWidth = 0.5;
+        ctx.moveTo(nodes[i].x, nodes[i].y);
+        ctx.lineTo(nodes[j].x, nodes[j].y);
+        ctx.stroke();
+      }
+    }
+    ctx.beginPath();
+    ctx.arc(nodes[i].x, nodes[i].y, nodes[i].r, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(124,92,252,0.5)';
+    ctx.fill();
+  }
+  requestAnimationFrame(drawNeural);
+}
+
+resizeCanvas(); initNodes(); drawNeural();
+window.addEventListener('resize', () => { resizeCanvas(); initNodes(); });
+
+// ─── Typing Tracker ───────────────────────────────────────────────────
+const textarea = document.getElementById('typing-area');
+const analyzeBtn = document.getElementById('analyze-btn');
+const progressFill = document.getElementById('progress-fill');
+
+let data = {
+  keyTimings: [],
+  backspaces: 0,
+  pauses: 0,
+  bursts: 0,
+  startTime: null,
+  lastKeyTime: null,
+  currentBurst: 0,
+  pauseThreshold: 1200,
+  burstThreshold: 300,
+};
+
+let wpmInterval = null;
+
+textarea.addEventListener('focus', () => {
+  document.getElementById('typing-card').classList.add('focused');
+  if (!data.startTime) {
+    data.startTime = Date.now();
+    wpmInterval = setInterval(updateWPM, 1000);
+  }
+});
+
+textarea.addEventListener('blur', () => {
+  document.getElementById('typing-card').classList.remove('focused');
+});
+
+textarea.addEventListener('keydown', (e) => {
+  const now = Date.now();
+
+  if (e.key === 'Backspace') {
+    data.backspaces++;
+    document.getElementById('sv-bp').textContent = data.backspaces;
+    document.getElementById('sc-bp').classList.add('active');
+    setTimeout(() => document.getElementById('sc-bp').classList.remove('active'), 300);
+  }
+
+  if (data.lastKeyTime) {
+    const gap = now - data.lastKeyTime;
+
+    if (gap > data.pauseThreshold) {
+      data.pauses++;
+      document.getElementById('sv-pause').textContent = data.pauses;
+      data.currentBurst = 0;
+    } else if (gap < data.burstThreshold) {
+      data.currentBurst++;
+      if (data.currentBurst === 5) {
+        data.bursts++;
+        document.getElementById('sv-burst').textContent = data.bursts;
+        data.currentBurst = 0;
+      }
+    }
+  }
+
+  data.keyTimings.push(now);
+  data.lastKeyTime = now;
+});
+
+textarea.addEventListener('input', () => {
+  const words = textarea.value.trim().split(/\s+/).filter(w => w.length > 0);
+  const count = words.length;
+  document.getElementById('wc-current').textContent = count;
+
+  const pct = Math.min((count / 30) * 100, 100);
+  progressFill.style.width = pct + '%';
+
+  if (count >= 30) {
+    analyzeBtn.classList.add('ready');
+  } else {
+    analyzeBtn.classList.remove('ready');
+  }
+});
+
+function updateWPM() {
+  if (!data.startTime) return;
+  const elapsed = (Date.now() - data.startTime) / 60000;
+  const words = textarea.value.trim().split(/\s+/).filter(w => w.length > 0).length;
+  const wpm = elapsed > 0 ? Math.round(words / elapsed) : 0;
+  document.getElementById('sv-wpm').textContent = wpm;
+}
+
+// ─── Personality Engine ───────────────────────────────────────────────
+const personalities = [
+  {
+    emoji: '⚡',
+    type: 'The Rapid Fire Rebel',
+    name: 'Rapid Fire Rebel',
+    desc: 'You think at the speed of electricity. Your mind fires before your fingers can keep up — raw energy, zero filters. You don\'t plan, you execute. This is the rarest typing signature.',
+    traits: { Speed: 95, Confidence: 90, Creativity: 80, Precision: 40 },
+    traitColors: ['#7c5cfc', '#fc5c9c', '#5cf8fc', '#fcdc5c'],
+    famous: { icon: '🚀', name: 'Elon Musk', why: 'Fast decisions, acts before doubting' },
+    condition: (wpm, bp, pauses, bursts) => wpm > 55 && bp < 5 && bursts > 3
+  },
+  {
+    emoji: '🏛️',
+    type: 'The Silent Architect',
+    name: 'Silent Architect',
+    desc: 'Every pause is a blueprint being drawn. You don\'t type — you construct. Each word is chosen, each sentence engineered. Your thinking is your superpower.',
+    traits: { Precision: 95, Depth: 88, Patience: 85, Speed: 30 },
+    traitColors: ['#7c5cfc', '#5cf8fc', '#fcdc5c', '#fc5c9c'],
+    famous: { icon: '🧬', name: 'A.P.J. Abdul Kalam', why: 'Thoughtful, precise, built for the long game' },
+    condition: (wpm, bp, pauses, bursts) => pauses > 4 && wpm < 40
+  },
+  {
+    emoji: '🎭',
+    type: 'The Obsessive Perfectionist',
+    name: 'Obsessive Perfectionist',
+    desc: 'You delete more than most people type. Every backspace is a standard being upheld. You refuse to ship anything broken — including sentences. The world needs more of you.',
+    traits: { Precision: 98, Attention: 92, Confidence: 45, Flow: 50 },
+    traitColors: ['#fc5c9c', '#7c5cfc', '#fcdc5c', '#5cf8fc'],
+    famous: { icon: '🎸', name: 'Steve Jobs', why: 'Relentless quality, never "good enough"' },
+    condition: (wpm, bp, pauses, bursts) => bp > 10
+  },
+  {
+    emoji: '🌊',
+    type: 'The Flow State Creator',
+    name: 'Flow State Creator',
+    desc: 'Your typing has rhythm — like music. You enter the zone and words pour out in waves. Bursts of brilliance followed by brief resets. You create best when undisturbed.',
+    traits: { Creativity: 92, Rhythm: 88, Focus: 80, Adaptability: 75 },
+    traitColors: ['#5cf8fc', '#7c5cfc', '#fc5c9c', '#fcdc5c'],
+    famous: { icon: '✍️', name: 'J.K. Rowling', why: 'Deep creative bursts, storyteller mind' },
+    condition: (wpm, bp, pauses, bursts) => bursts > 5 && bp < 8
+  },
+  {
+    emoji: '🔬',
+    type: 'The Calm Strategist',
+    name: 'Calm Strategist',
+    desc: 'Steady. Methodical. Unshakeable. Your typing has no panic, no rush — just consistent output. You\'re the person everyone wants in a crisis. Rare in a world of reactors.',
+    traits: { Consistency: 90, Logic: 88, Patience: 85, Agility: 60 },
+    traitColors: ['#fcdc5c', '#5cf8fc', '#7c5cfc', '#fc5c9c'],
+    famous: { icon: '♟️', name: 'Sundar Pichai', why: 'Measured, strategic, consistently brilliant' },
+    condition: () => true // default
+  }
+];
+
+function analyzePersonality() {
+  if (!analyzeBtn.classList.contains('ready')) return;
+
+  clearInterval(wpmInterval);
+  updateWPM();
+
+  const wpm = parseInt(document.getElementById('sv-wpm').textContent);
+  const bp = data.backspaces;
+  const pauses = data.pauses;
+  const bursts = data.bursts;
+
+  const match = personalities.find(p => p.condition(wpm, bp, pauses, bursts));
+
+  showResult(match, { wpm, bp, pauses, bursts });
+}
+
+function showResult(p, stats) {
+  document.getElementById('r-emoji').textContent = p.emoji;
+  document.getElementById('r-type').textContent = p.type;
+  document.getElementById('r-name').textContent = p.name;
+  document.getElementById('r-desc').textContent = p.desc;
+
+  // Traits
+  const grid = document.getElementById('traits-grid');
+  grid.innerHTML = '';
+  const traitKeys = Object.keys(p.traits);
+  traitKeys.forEach((trait, i) => {
+    const score = p.traits[trait];
+    const color = p.traitColors[i];
+    const el = document.createElement('div');
+    el.className = 'trait-item';
+    el.innerHTML = `
+      <div class="trait-header">
+        <span class="trait-name">${trait}</span>
+        <span class="trait-score" style="color:${color}">${score}</span>
+      </div>
+      <div class="trait-bar">
+        <div class="trait-fill" style="background:${color}" data-width="${score}"></div>
+      </div>
+    `;
+    grid.appendChild(el);
+  });
+
+  // Famous
+  document.getElementById('famous-icon').textContent = p.famous.icon;
+  document.getElementById('famous-name').textContent = p.famous.name;
+  document.getElementById('famous-why').textContent = p.famous.why;
+
+  // Show
+  const section = document.getElementById('result-section');
+  section.classList.add('visible');
+  document.getElementById('typing-card').style.display = 'none';
+  document.querySelector('.stats-bar').style.display = 'none';
+
+  // Animate trait bars after paint
+  requestAnimationFrame(() => {
+    setTimeout(() => {
+      document.querySelectorAll('.trait-fill').forEach(bar => {
+        bar.style.width = bar.dataset.width + '%';
+      });
+    }, 200);
+  });
+
+  section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function resetAnalyzer() {
+  textarea.value = '';
+  data = {
+    keyTimings: [], backspaces: 0, pauses: 0, bursts: 0,
+    startTime: null, lastKeyTime: null, currentBurst: 0,
+    pauseThreshold: 1200, burstThreshold: 300
+  };
+  ['sv-wpm','sv-bp','sv-pause','sv-burst'].forEach(id => {
+    document.getElementById(id).textContent = '0';
+  });
+  document.getElementById('wc-current').textContent = '0';
+  progressFill.style.width = '0%';
+  analyzeBtn.classList.remove('ready');
+
+  document.getElementById('result-section').classList.remove('visible');
+  document.getElementById('typing-card').style.display = 'block';
+  document.querySelector('.stats-bar').style.display = 'grid';
+
+  setTimeout(() => textarea.focus(), 100);
+}
+</script>
+</body>
+</html>
